@@ -179,10 +179,6 @@ def main():
                             "content": SYSTEM_PROMPT,
                         },
                         {
-                            "role": "user",
-                            "content": f"Context: {most_similar_docs["documents"]}, Question: {prompt}" ,
-                        },
-                        {
                             "role": "system",
                             "content": SYSTEM_PROMPT_AFTER,
                         },
