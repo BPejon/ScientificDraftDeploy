@@ -9,6 +9,8 @@ install: ollama deps
 ollama:
 	@echo "Configurando Ollama..."
 	curl -fsSL https://ollama.com/install.sh | sh
+	sudo systemctl start ollama
+	sleep 10
 	ollama pull nomic-embed-text
 	ollama pull llama3:8b
 
