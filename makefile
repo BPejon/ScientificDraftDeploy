@@ -2,9 +2,15 @@
 
 .PHONY: all install ollama deps run
 
-all: deps ollama run
+all: ollama deps run
 
-install: deps ollama
+install: ollama deps
+
+ollama:
+	@echo "Configurando Ollama..."
+	curl -fsSL https://ollama.com/install.sh | sh
+	ollama pull nomic-embed-text
+	ollama pull llama3:8b
 
 deps:
 	@echo "Instalando dependências..."
@@ -12,12 +18,6 @@ deps:
 	sudo apt install -y python3-pip python3-venv
 	python3 -m venv venv
 	. venv/bin/activate && pip install -r requirements.txt
-
-ollama:
-	@echo "Configurando Ollama..."
-	curl -fsSL https://ollama.com/install.sh | sh
-	ollama pull nomic-embed-text
-	ollama pull llama3:8b
 
 run:
 	@echo "Iniciando aplicação..."

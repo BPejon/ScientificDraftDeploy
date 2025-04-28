@@ -61,7 +61,7 @@ def process_document(uploaded_file: UploadedFile) -> List[Document]:
 
     return text_splitter.split_documents(docs)
 
-def query_collection(prompt:str, n_results: int = 99999 , exclude_docs:list[str] = None, max_embeddings_per_doc: int = 200):
+def query_collection(prompt:str, n_results: int = 99999 , exclude_docs:list[str] = None, max_embeddings_per_doc: int = 25):
     collection = get_vector_collection()
     CONTROL_NUMBER = 350
 
