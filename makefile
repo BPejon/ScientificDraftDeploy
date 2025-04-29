@@ -1,6 +1,6 @@
 # Makefile para instalação dentro do WSL
 
-.PHONY: all install ollama deps run fix-dpk
+.PHONY: all install ollama deps run fix-dpk update
 
 all: ollama deps run
 
@@ -25,6 +25,11 @@ deps: fix-dpk
 	sudo apt install -y python3-pip python3-venv
 	python3 -m venv venv
 	. venv/bin/activate && pip install -r requirements.txt
+
+update:
+	@echo "Atualizando código..."
+	git pull
+	@echo "Código atualizado!"
 
 run:
 	@echo "Iniciando aplicação..."
