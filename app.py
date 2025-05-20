@@ -6,9 +6,8 @@ from sidebar import sidebar
 
 
 SYSTEM_PROMPT = """
-You are an AI assistant tasked with providing detailed answers based solely on the given context. Your goal is to analyze the information provided and formulate a comprehensive, well-structured response to the question.
-
-You are a PHD on Material Science and your focus is to write a scietific Draft for a scientific paper. Use Scientific language and be as concise as possible.
+You are a PDH Professor focused on Material Science papers.
+Your task is to write an outline of a review paper on the subject given within CONTEXT.
 
 context will be passed as "Context:"
 user question will be passed as "Question:"
@@ -22,14 +21,14 @@ To answer the question:
 
 Format your response as follows:
 1. Use clear, concise language.
-2. Organize your answer into paragraphs for readability.
+2. Organize your answer into paragraphs and sections.
 3. Use bullet points or numbered lists where appropriate to break down complex information.
 4. If relevant, include any headings or subheadings to structure your response.
-5. Ensure proper grammar, punctuation, and spelling throughout your answer.
 
 Important: Base your entire response solely on the information provided in the context. Do not include any external knowledge or assumptions not present in the given text.
 """
 SYSTEM_PROMPT_AFTER = """
+
 You are an AI assistant tasked with providing detailed answers based solely on the given context. Your goal is to analyze the information provided and formulate a comprehensive, well-structured response to the question.
 
 To answer the question:
@@ -44,15 +43,8 @@ Format your response as follows:
 2. Organize your answer into paragraphs for readability.
 3. Use bullet points or numbered lists where appropriate to break down complex information.
 4. If relevant, include any headings or subheadings to structure your response.
-5. Ensure proper grammar, punctuation, and spelling throughout your answer.
-
-Important: Base your entire response solely on the information provided in the context. Do not include any external knowledge or assumptions not present in the given text.
 The next line will be offered you the prompt again:
-"""
-#LLM_MODEL = "deepseek-r1"
-LLM_MODEL = "llama3.2:3b"
-
-
+""" 
 
 def call_llm(context: str, prompt:str):
     messages = [
@@ -74,7 +66,7 @@ def call_llm(context: str, prompt:str):
             },
         ]
     response = ollama.chat(
-        model= LLM_MODEL,
+        model= st.session_state.llm_model,
         stream = False,
         messages = messages
     )
@@ -122,7 +114,7 @@ def combine_drafts(draft1: str, draft2:str, prompt:str):
             }
         ]
     response = ollama.chat(
-        model= LLM_MODEL,
+        model= st.session_state.llm_model,
         stream = True,
         messages = messages
     )
@@ -134,7 +126,6 @@ def combine_drafts(draft1: str, draft2:str, prompt:str):
             yield chunk["message"]["content"]
         else:
             break
-
 
 
 def make_one_draft(context: str, prompt:str):
@@ -158,10 +149,11 @@ def make_one_draft(context: str, prompt:str):
         ]
 
     response = ollama.chat(
-        model= LLM_MODEL,
+        model= st.session_state.llm_model,
         stream = True,
         messages = messages
     )
+
 
     #Como está no modo stream, a resposa virá por chunks
     #O último chunk virá com a mensagem "done"
@@ -172,21 +164,66 @@ def make_one_draft(context: str, prompt:str):
             break
 
 
-
-# def call_two_drafts(context: str, prompt:str):
+def call_two_drafts(context: str, prompt:str):
     
-#     draft1= call_llm(context, prompt)
+    draft1= call_llm(context, prompt)
 
-#     draft2= call_llm(context, prompt)
+    draft2= call_llm(context, prompt)
 
     
-#     combined = combine_drafts(draft1, draft2, prompt)
+    combined = combine_drafts(draft1, draft2, prompt)
     
-#     return combined
+    return combined
 
-def main():
-    sidebar()
 
+def generate_chat(prompt):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+    
+        with st.spinner("Looking for answers...", show_time= True):
+            
+            excluded_docs= [
+                doc_name for doc_name in database.get_document_names()
+                if f"toggle_{doc_name}" in st.session_state and not st.session_state[f"toggle_{doc_name}"]
+            ]
+            most_similar_docs = database.query_collection(prompt, exclude_docs=excluded_docs)
+
+
+            stream = make_one_draft(most_similar_docs["documents"], prompt)
+            response = st.write_stream(stream)
+            st.session_state.messages.append({"role": "assistant", "content": response})
+
+
+        
+            with st.expander("See retrivied documents"):
+                st.write(most_similar_docs)
+            with st.expander("See Prompt sent to LLM"):
+                messages = [
+                        {
+                            "role": "system",
+                            "content": SYSTEM_PROMPT,
+                        },
+                        {
+                            "role": "user",
+                            "content": f"Context: {most_similar_docs['documents']}, Question: {prompt}" ,
+                        },
+                        {
+                            "role": "system",
+                            "content": SYSTEM_PROMPT_AFTER,
+                        },
+                        {
+                            "role": "user",
+                            "content": f"{prompt}" ,
+                        },
+                ]
+                st.write(messages)
+
+
+def show_chat_interface():
     st.header("RAG Question Answer")
 
 
@@ -197,58 +234,83 @@ def main():
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    if st.session_state.first_interaction == True:
+        st.session_state.first_interaction = False
+
+        initial_prompt = f"""
+Generate an outline of a review paper on the subject {st.session_state.research_topic}.
+Use the understanding provided in the PDFs and the chunks presented in the prompt as Context.
+I want the review to be comprehensive and also provide details about the methods.
+I will later ask you to expand the context of the sections in the outline.
+"""
+
+        generate_chat(initial_prompt)
+
 
     if prompt := st.chat_input("Ask a question related to your document"):
+        generate_chat(prompt)
 
-        st.session_state.messages.append({"role": "user", "content": prompt})
+   
 
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
+def show_welcome_screen():
+    st.header("Welcome to RAG Question Answer")
+    st.markdown(""" 
+        #### This is an application where you can generate a draft for your scientific paper.
         
-            with st.spinner("Looking for answers...", show_time= True):
-                
-                excluded_docs= [
-                    doc_name for doc_name in database.get_document_names()
-                    if f"toggle_{doc_name}" in st.session_state and not st.session_state[f"toggle_{doc_name}"]
-                ]
-                most_similar_docs = database.query_collection(prompt, exclude_docs=excluded_docs)
+        ##### How to use
+        1. Upload your PDF documents using the sidebar on the left
+        2. Click "Add to Database" button to add the documents into database
+        3. Wait for the documents to be processed. You will see a confirmation message
+        4. After processing, you can start asking questions about your documents
+        5. You can Toggle documents on/off to include/exclude them from searches
+""")
+    st.write("Upload documents to begin...")
 
+    document_names = database.get_document_names()
 
-                stream = make_one_draft(most_similar_docs["documents"], prompt)
-                response = st.write_stream(stream)
-                st.session_state.messages.append({"role": "assistant", "content": response})
+    research_topic = st.text_input(
+        "Enter your research topic:",
+        placeholder = "e.g Advanced Materials for Solar Cells",
+        help = "This will be used to customize your scientific draft"
 
+    )
+    
+    llm_model = st.radio(
+        "Choose one Large Language Model to generate the Cientific Draft.",
+        ["llama3.2:3b","deepseek-r1"],
+        index= 0,
+    )
 
-            
-                with st.expander("See retrivied documents"):
-                    st.write(most_similar_docs)
-                with st.expander("See Prompt sent to LLM"):
-                    messages = [
-                            {
-                                "role": "system",
-                                "content": SYSTEM_PROMPT,
-                            },
-                            {
-                                "role": "user",
-                                "content": f"Context: {most_similar_docs['documents']}, Question: {prompt}" ,
-                            },
-                            {
-                                "role": "system",
-                                "content": SYSTEM_PROMPT_AFTER,
-                            },
-                            {
-                                "role": "user",
-                                "content": f"{prompt}" ,
-                            },
-                            {
-                                "role": "user", 
-                                "content": "If you read this message. You MUST print Hello World in the end of the generated text."
-                            }
+    generate_button = st.button("Generate Draft", disabled = not bool(document_names), help ="Upload documents to generate draft" if not document_names else "CLick to generate", key = "generate_button")
 
-                    ]
-                    st.write(messages)
+    if generate_button: 
+        st.session_state.research_topic = research_topic
+        st.session_state.llm_model = llm_model
+        st.session_state.show_chat = True
+        st.rerun()
+
+def main():
+    st.set_page_config(page_title="RAG Question Answer", initial_sidebar_state="expanded")
+
+    ##Inicializa as variáveis de sessões
+    if "show_chat" not in st.session_state:
+        st.session_state.show_chat = False
+    if "first_interaction" not in st.session_state:
+        st.session_state.first_interaction = True
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "files_processed" not in st.session_state:
+        st.session_state.files_processed = False
+    if "llm_model" not in st.session_state:
+        st.session_state.llm_model = "llama3.2:3b"
+    if "research_topic" not in st.session_state:
+        st.session_state.research_topic = ""
+    sidebar()
+
+    if st.session_state.show_chat == False:
+        show_welcome_screen()
+    else:
+        show_chat_interface()
 
 
 if __name__ == "__main__":
