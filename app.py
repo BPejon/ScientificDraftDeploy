@@ -261,10 +261,12 @@ def show_welcome_screen():
         1. Upload your PDF documents using the sidebar on the left
         2. Click "Add to Database" button to add the documents into database
         3. Wait for the documents to be processed. You will see a confirmation message
-        4. After processing, you can start asking questions about your documents
-        5. You can Toggle documents on/off to include/exclude them from searches
+        4. Specify the research topic for the LLM to create a scientific draft
+        5. Select your LLM. Choose Llama3.2 if you have a low spec machine. Otherwise, select deepseek for better results.
+        6. Click "Generate Draft" to generate your first draft
+                
+        You can Toggle documents on/off to include/exclude them from searches
 """)
-    st.write("Upload documents to begin...")
 
     document_names = database.get_document_names()
 
@@ -281,9 +283,9 @@ def show_welcome_screen():
         index= 0,
     )
 
-    generate_button = st.button("Generate Draft", disabled = not bool(document_names), help ="Upload documents to generate draft" if not document_names else "CLick to generate", key = "generate_button")
+    generate_button = st.button("Generate Draft", disabled = not bool(document_names), help ="Upload documents to generate draft" if not document_names else "Click to generate", key = "generate_button")
 
-    if generate_button: 
+    if generate_button and research_topic != "": 
         st.session_state.research_topic = research_topic
         st.session_state.llm_model = llm_model
         st.session_state.show_chat = True
