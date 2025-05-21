@@ -15,12 +15,12 @@ ollama:
 	@echo "Configurando Ollama..."
 	curl -fsSL https://ollama.com/install.sh | sh
 	sudo systemctl start ollama
-	sleep 5
+	sleep 3
 	ollama pull nomic-embed-text
-	sleep 5
-	ollama run llama3.2:3b
-	sleep 5
-	ollama run deepseek-r1
+	sleep 3
+	ollama pull llama3.2:3b
+	sleep 3
+	ollama pull deepseek-r1
 
 deps: fix-dpk
 	@echo "Instalando dependências..."
@@ -34,6 +34,6 @@ update:
 	git pull
 	@echo "Código atualizado!"
 
-run: update 
+run: update
 	@echo "Iniciando aplicação..."
-	. env/bin/activate && streamlit run app.py
+	. venv/bin/activate && streamlit run app.py
