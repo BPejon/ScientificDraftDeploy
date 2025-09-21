@@ -3,12 +3,34 @@ from chromadb.utils.embedding_functions.ollama_embedding_function import OllamaE
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_experimental.text_splitter import SemanticChunker
 import os
 import chromadb
 from typing import List
 import tempfile
 import streamlit as st
 import shutil
+import numpy as np
+
+from langchain_core.embeddings import Embeddings
+from chromadb.utils.embedding_functions.ollama_embedding_function import OllamaEmbeddingFunction
+
+
+class OllamaLangchainEmbeddings(Embeddings):
+    def __init__(self, url: str = "http://localhost:11434/api/embeddings", model_name: str = "nomic-embed-text:latest"):
+        self._ef = OllamaEmbeddingFunction(url=url, model_name=model_name)
+
+    def _normalize_embedding(self, emb) -> list[float]:
+        # Alguns modelos retornam [[[...]]] → precisamos achatar
+        arr = np.array(emb).squeeze()
+        return arr.tolist()
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._normalize_embedding(self._ef(text)) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._normalize_embedding(self._ef(text))
+
 
 CHROMA_PATH = "./demo-rag-chroma"
 COLLECTION_NAME = "rag_app"
@@ -53,17 +75,25 @@ def process_document(uploaded_file: UploadedFile) -> List[Document]:
     docs = loader.load()
     os.unlink(temp_file.name) #Delete temp file
 
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size = 400,
-        chunk_overlap = 100,
-        separators= ["\n\n", "\n", ".", "?", "!", " ", ""],
-    )
+    try:
+        ollama_embeddings = OllamaLangchainEmbeddings()
+        text_splitter = SemanticChunker(ollama_embeddings, breakpoint_threshold_type="percentile")
+        return text_splitter.split_documents(docs)
+    except Exception as e:
+        st.warning(f"Semantic chunking failed ({e}), falling back to Recursive splitter.")
+        text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            chunk_size = 700,
+            chunk_overlap = 150,
+            separators= ["\n\n", "\n", ".", "(?<=\\. )", "!", " ", ""],
+        )
+        return text_splitter.split_documents(docs)
 
-    return text_splitter.split_documents(docs)
 
-def query_collection(prompt:str, n_results: int = 99999 , exclude_docs:list[str] = None, max_embeddings_per_doc: int = 200):
+#n_results = how many chuncks will be passed to the query
+#max_embeddings_per_doc = max number of chunks that is able to pass by a singular document
+def query_collection(prompt:str, n_results: int = 200 , exclude_docs:list[str] = None, max_embeddings_per_doc: int = 15):
     collection = get_vector_collection()
-    CONTROL_NUMBER = 350
+    CONTROL_NUMBER = 5
     
     ##Verifica se há documento
     try:
